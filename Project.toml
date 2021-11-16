@@ -1,0 +1,8 @@
+name = "ReinforcementLearning"
+uuid = "5ca72b03-e5bd-456a-9069-e6113efe0641"
+authors = ["Milan Rapaić <rapaja@uns.ac.rs>"]
+version = "0.1.0"
+
+[deps]
+OhMyREPL = "5fb14364-9ced-5910-84b2-373655c76a03"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
