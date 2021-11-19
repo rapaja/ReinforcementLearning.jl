@@ -53,18 +53,26 @@ If `policy` is a vector, it will be interpreted as a deterministic decision poli
 with entry at coordinate `policy[s]` to be interpreted as the action to choose at state `s`.
 """
 function V_from_Q!(V::AbstractVector{T}, Q::AbstractMatrix{T}, stochastic_policy::AbstractMatrix{T}) where {T<:Real}
+    Δ = -Inf
     for s = 1:size(Q, 1)
+        prev = V[s]
         V[s] = 0
         for a = 1:size(Q, 2)
             V[s] += stochastic_policy[s, a] * Q[s, a]
         end # for: actions
+        Δ = max(Δ, abs(V[s] - prev))
     end # for: states
+    return Δ
 end
 
 function V_from_Q!(V::AbstractVector{T}, Q::AbstractMatrix{T}, deterministic_policy::AbstractVector{Integer}) where {T<:Real}
+    Δ = -Inf
     for s = 1:size(Q, 1)
+        prev = V[s]
         V[s] = Q[s, deterministic_policy[s]]
+        Δ = max(Δ, abs(V[s] - prev))
     end # for: states
+    return Δ
 end
 
 """
@@ -77,17 +85,25 @@ The content of the created vector is uninitialized! After creation, the content
 is completely unrelated to the content of `Q`.
 """
 function create_P_from_Q(Q::AbstractMatrix{T}) where {T<:Real}
-    return Matrix{T}(undef, size(Q, 1))
+    return Vector{T}(undef, size(Q, 1))
 end
 
 """
-    greedy_policy_from_Q(Q)
+    P_from_Q(Q)
 
 Evaluates deterministic greedy policy (represented by a vector whose entry at index `s`
 corresponds to the action to take in `s`) from the given state-action matrix `Q`.
+
+Returns boolean indicator showing whether policy has changed or not.
 """
-function greedy_policy_from_Q!(P::AbstractVector{Integer}, Q::AbstractMatrix{T}) where {T<:Real}
+function P_from_Q!(P::AbstractVector{Integer}, Q::AbstractMatrix{T}) where {T<:Real}
+    modified = false
     for s = 1:size(Q, 1)
+        temp = P[s]
         P[s] = argmax(Q[s, :])
+        if temp != P[s]
+            modified = true
+        end
     end # for: states
+    return modified
 end
