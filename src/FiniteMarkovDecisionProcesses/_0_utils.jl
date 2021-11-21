@@ -1,15 +1,21 @@
 """
-    create_Q_from_V(V, actions_no)
+    allocate_V_and_Q([T], mdp)
 
-Create an empty matrix of state-action values `Q`, given a vector of state values `V`
-and the total number of actions `actions_no`.
+Create an empty matrix of state values `V` and state-action values `Q`, 
+given a finite Markov decission problem, and an optional type `T`.
 
-The content of the created matrix is uninitialized! After creation, the content
-is completely unrelated to the content of `V`.
+Elements of the created matrices are of type `T`. If the type is not specified
+`Float64` is used by default.
+
+The content of the created matrices is uninitialized.
 """
-function create_Q_from_V(V::AbstractVector{<:Real}, actions_no::Integer)
-    return Matrix{eltype(V)}(undef, length(V), actions_no)
+function allocate_V_and_Q(T::Type, mdp::FiniteMDP)
+    V = Vector{T}(undef, states_no(mdp))
+    Q = Matrix{T}(undef, states_no(mdp), actions_no(mdp))
+    return V, Q
 end
+
+allocate_V_and_Q(mdp::FiniteMDP) = allocate_V_and_Q(Float64, mdp)
 
 """
     Q_from_V!(Q, V, mdp, γ)
@@ -17,7 +23,7 @@ end
 Reevaluate matrix of state-action values `Q` given a vector of state values `V`
 for the given finite MDP, assuming discount factor `γ`.
 """
-function Q_from_V!(Q::AbstractMatrix{T}, V::AbstractVector{T}, mdp::StochasticFiniteMDP{T}, γ::T) where {T<:Real}
+function Q_from_V!(Q::AbstractMatrix{<:Real}, V::AbstractVector{<:Real}, mdp::StochasticFiniteMDP{<:Real}, γ::Real)
     for s = 1:states_no(mdp)
         for a = 1:actions_no(mdp)
             ℙsr = mdp.probabilities(s, a)
@@ -31,7 +37,7 @@ function Q_from_V!(Q::AbstractMatrix{T}, V::AbstractVector{T}, mdp::StochasticFi
     end # for: states
 end
 
-function Q_from_V!(Q::AbstractMatrix{T}, V::AbstractVector{T}, mdp::DeterministicFiniteMDP, γ::T) where {T<:Real}
+function Q_from_V!(Q::AbstractMatrix{<:Real}, V::AbstractVector{<:Real}, mdp::DeterministicFiniteMDP, γ::Real)
     for s = 1:states_no(mdp)
         for a = 1:actions_no(mdp)
             Q[s, a] = mdp.reward(s, a) + γ * V[mdp.next_state(s, a)]
@@ -52,7 +58,7 @@ action `a` at state `s`.
 If `policy` is a vector, it will be interpreted as a deterministic decision policy,
 with entry at coordinate `policy[s]` to be interpreted as the action to choose at state `s`.
 """
-function V_from_Q!(V::AbstractVector{T}, Q::AbstractMatrix{T}, stochastic_policy::AbstractMatrix{T}) where {T<:Real}
+function V_from_Q!(V::AbstractVector{<:Real}, Q::AbstractMatrix{<:Real}, stochastic_policy::AbstractMatrix{<:Real})
     Δ = -Inf
     for s = 1:size(Q, 1)
         prev = V[s]
@@ -65,7 +71,7 @@ function V_from_Q!(V::AbstractVector{T}, Q::AbstractMatrix{T}, stochastic_policy
     return Δ
 end
 
-function V_from_Q!(V::AbstractVector{T}, Q::AbstractMatrix{T}, deterministic_policy::AbstractVector{Integer}) where {T<:Real}
+function V_from_Q!(V::AbstractVector{<:Real}, Q::AbstractMatrix{<:Real}, deterministic_policy::AbstractVector{<:Integer})
     Δ = -Inf
     for s = 1:size(Q, 1)
         prev = V[s]
@@ -84,9 +90,11 @@ of the given matrix of state-action values `Q`.
 The content of the created vector is uninitialized! After creation, the content
 is completely unrelated to the content of `Q`.
 """
-function create_P_from_Q(Q::AbstractMatrix{T}) where {T<:Real}
+function create_P_from_Q(T::Type, Q::AbstractMatrix{<:Real})
     return Vector{T}(undef, size(Q, 1))
 end
+
+create_P_from_Q(Q::AbstractMatrix{<:Real}) = create_P_from_Q(Int, Q)
 
 """
     P_from_Q(Q)
@@ -96,11 +104,15 @@ corresponds to the action to take in `s`) from the given state-action matrix `Q`
 
 Returns boolean indicator showing whether policy has changed or not.
 """
-function P_from_Q!(P::AbstractVector{Integer}, Q::AbstractMatrix{T}) where {T<:Real}
+function P_from_Q!(P::AbstractVector{<:Integer}, Q::AbstractMatrix{<:Real})
     modified = false
     for s = 1:size(Q, 1)
         temp = P[s]
-        P[s] = argmax(Q[s, :])
+        q = replace(Q[s, :], NaN => -Inf)
+        P[s] = argmax(q)
+        if isnan(P[s])
+            P[s] = rand(1:size(Q, 2))
+        end
         if temp != P[s]
             modified = true
         end
