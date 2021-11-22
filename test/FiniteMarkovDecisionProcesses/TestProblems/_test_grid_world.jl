@@ -46,7 +46,6 @@
             modified = MDP.P_from_Q!(P, Q)
             if !modified
                 converged = true
-                @info P
                 break
             end
         end # for: iterations
@@ -57,7 +56,7 @@
 
     @testset "MK: policy evaluation" begin
         P = 0.25 * ones(size(next_states)...)
-        simulator = MDP.create_simulator(fmdp, P)
+        simulator = MDP.create_simulator(fmdp, P, 100)
         V, Q = MDP.allocate_V_and_Q(fmdp)
         MDP.mk_evaluate_policy!(Q, simulator, 1.0; maxiter = 10000)
 
@@ -73,28 +72,24 @@
         MDP.Q_from_V!(Q, optimal_V, fmdp, 1.0)
         𝐩 = rand(1:4, size(next_states, 1))
         MDP.P_from_Q!(𝐩, Q)
-        simulator = MDP.create_simulator(fmdp, 𝐩, 0.05)
-        episode = simulator(5)
+        simulator = MDP.create_simulator(fmdp, 𝐩, 0.05, 100)
+        episode = simulator(5, 2)
     end
 
     @testset "MK: policy optimization" begin
         𝐩 = rand(1:4, size(next_states, 1))
-        simulator = MDP.create_simulator(fmdp, 𝐩, 0.05)
+        simulator = MDP.create_simulator(fmdp, 𝐩, 0.05, 100)
         optimal_V = [-1.0, -2.0, -3.0, -1.0, -2.0, -3.0, -2.0, -2.0, -3.0, -2.0, -1.0, -3.0, -2.0, -1.0, 0.0]
         V, Q = MDP.allocate_V_and_Q(fmdp)
         converged = false
-        for i = 1:1000
-            MDP.mk_evaluate_policy!(Q, simulator, 1.0; maxiter = 1000)
+        for i = 1:10
+            MDP.mk_evaluate_policy!(Q, simulator, 1.0; maxiter = 10000)
             modified = MDP.P_from_Q!(𝐩, Q)
-            # if !modified
-            #     converged = true
-            #     break
-            # end
         end # for: iterations
 
-        @info 𝐩
         e = (abs.(V - optimal_V))[1:end-1]
         @test max(e...) < 4
+        @info max(e...)
     end
 
 end

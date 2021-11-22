@@ -14,11 +14,12 @@ The function returns a 2-tuple containing: the number of iterations performed, a
 indicator of convergence (which is `true` if the vector of state values is evaluated with the 
 required precission, and `false` otherwise).
 """
-function mk_evaluate_policy!(Q::AbstractMatrix{<:Real}, policy_simulator, γ::Real; maxiter = 100)
+function mk_evaluate_policy!(Q::AbstractMatrix{<:Real}, policy_simulator, γ::Real; maxiter = 100, non_termination_penalty = 1000)
     R = fill((0.0, 0), size(Q))
     for i = 1:maxiter
         s0 = rand(1:size(Q, 1))
-        episode = policy_simulator(s0)
+        a0 = rand(1:size(Q, 2))
+        episode = policy_simulator(s0, a0)
         for i = 1:length(episode)-1
             s, a, r = episode[i]
             g = r
@@ -27,6 +28,10 @@ function mk_evaluate_policy!(Q::AbstractMatrix{<:Real}, policy_simulator, γ::Re
                 w = w * γ
                 _, _, r1 = episode[j]
                 g += w * r1
+            end
+            s_fin, _, _ = episode[end]
+            if s_fin != -1
+                g -= non_termination_penalty
             end
             ∑r, n = R[s, a]
             R[s, a] = (∑r + g, n + 1)
