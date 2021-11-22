@@ -17,7 +17,7 @@ required precission, and `false` otherwise).
 function mk_evaluate_policy!(Q::AbstractMatrix{<:Real}, policy_simulator, γ::Real; maxiter = 100)
     R = fill((0.0, 0), size(Q))
     for i = 1:maxiter
-        s0 = rand(1:size(Q, 2))
+        s0 = rand(1:size(Q, 1))
         episode = policy_simulator(s0)
         for i = 1:length(episode)-1
             s, a, r = episode[i]
