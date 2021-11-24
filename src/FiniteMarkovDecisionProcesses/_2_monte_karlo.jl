@@ -24,7 +24,7 @@ function mk_evaluate_policy!(Q::AbstractMatrix{<:Real}, policy_simulator, γ::Re
             s, a, r = episode[i]
             g = r
             w = 1
-            for j = i:length(episode)-1
+            for j = (i+1):length(episode)-1
                 w = w * γ
                 _, _, r1 = episode[j]
                 g += w * r1

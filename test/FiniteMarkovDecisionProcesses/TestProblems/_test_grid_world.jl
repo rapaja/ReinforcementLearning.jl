@@ -23,73 +23,154 @@
 
     fmdp = MDP.DeterministicFiniteMDP((s, a) -> next_states[s, a], (s, a) -> rewards[s, a], 4, 15, 15)
 
-    @testset "DP: policy evaluation" begin
-        policy = 0.25 * ones(size(next_states)...)
+    optimal_V = [-1.0, -2.0, -3.0, -1.0, -2.0, -3.0, -2.0, -2.0, -3.0, -2.0, -1.0, -3.0, -2.0, -1.0, 0.0]
 
-        V, Q = MDP.allocate_V_and_Q(fmdp)
-        V[1] = 0
-        iters_no, converged = MDP.dp_evaluate_policy!(V, Q, fmdp, policy, 1.0; tol = 1e-4, maxiter = 1000)
+    uniform_random_policy = 0.25 * ones(size(next_states)...)
+    V_uniform_random_policy = [-14.0, -20.0, -22.0, -14.0, -18.0, -20.0, -20.0, -20.0, -20.0, -18.0, -14.0, -22.0, -20.0, -14.0, 0.0]
 
-        @test converged == true
+    random_deterministic_policy = rand(1:4, size(next_states, 1))
 
-        expected_V = [-14.0, -20.0, -22.0, -14.0, -18.0, -20.0, -20.0, -20.0, -20.0, -18.0, -14.0, -22.0, -20.0, -14.0, 0.0]
-        @test all(isapprox.(V, expected_V; atol = 1e-2))
-    end
+    @testset "Dynamic Programming (DP) tests" begin
 
-    @testset "DP: policy optimization" begin
-        P = rand(1:4, size(next_states, 1))
-        optimal_V = [-1.0, -2.0, -3.0, -1.0, -2.0, -3.0, -2.0, -2.0, -3.0, -2.0, -1.0, -3.0, -2.0, -1.0, 0.0]
-        V, Q = MDP.allocate_V_and_Q(fmdp)
-        converged = false
-        for i = 1:100
-            MDP.dp_evaluate_policy!(V, Q, fmdp, P, 1.0; tol = 1e-4, maxiter = 5)
-            modified = MDP.P_from_Q!(P, Q)
-            if !modified
-                converged = true
-                break
+        dp_V_tol = 1e-4
+        dp_maxiter_eval = 1000
+        dp_maxiter_optim = 1000
+
+        @testset "DP: policy evaluation (textbook)" begin
+            𝐏 = copy(uniform_random_policy)
+
+            V = MDP.allocate_V(fmdp)
+            Q = MDP.allocate_Q(fmdp)
+
+            V[MDP.terminal_state(fmdp)] = 0
+            iters_no, converged = MDP.dp_evaluate_policy_textbook!(V, Q, fmdp, 𝐏, 1.0; tol = dp_V_tol, maxiter = dp_maxiter_eval)
+
+            ΔV = abs.((V - V_uniform_random_policy))
+            err = max(ΔV...)
+            @info "DP: policy evaluation (textbook): max abs err = $err (iters no = $iters_no)"
+            @test converged && isapprox(err, 0.0; atol = 1e-1)
+        end
+
+        @testset "DP: policy evaluation via V update" begin
+            𝐏 = copy(uniform_random_policy)
+
+            V = MDP.allocate_V(fmdp)
+            V[MDP.terminal_state(fmdp)] = 0
+
+            converged = false
+            iters_no = dp_maxiter_eval
+            for i = 1:dp_maxiter_eval
+                Δ = MDP.dp_update_V!(V, fmdp, 𝐏, 1.0)
+                if Δ < dp_V_tol
+                    converged = true
+                    iters_no = i
+                    break
+                end
             end
-        end # for: iterations
 
-        @test converged == true
-        @test all(isapprox.(V, optimal_V; atol = 1e-2))
+            ΔV = abs.((V - V_uniform_random_policy))
+            err = max(ΔV...)
+            @info "DP: policy evaluation (V update): max abs err = $err (iters no = $iters_no)"
+            @test converged && isapprox(err, 0.0; atol = 1e-1)
+        end
+
+        @testset "DP: policy optimization (textbook GPI)" begin
+            𝐩 = copy(random_deterministic_policy)
+
+            V = MDP.allocate_V(fmdp)
+            Q = MDP.allocate_Q(fmdp)
+
+            V[MDP.terminal_state(fmdp)] = 0
+            converged = false
+            iters_no = dp_maxiter_optim
+            for i = 1:dp_maxiter_optim
+                MDP.dp_evaluate_policy_textbook!(V, Q, fmdp, 𝐩, 1.0; tol = dp_V_tol, maxiter = 5)
+                modified = MDP.𝐩_from_Q!(𝐩, Q)
+                if !modified
+                    iters_no = i
+                    converged = true
+                    break
+                end
+            end # for: iterations
+
+            ΔV = abs.((V - optimal_V))
+            err = max(ΔV...)
+            @info "DP: policy optimization (textbook GPI): max abs err = $err (iters no = $iters_no)"
+            @test converged && isapprox(err, 0.0; atol = 1e-1)
+        end
+
+        @testset "DP: policy optimization (value iteration)" begin
+            V = MDP.allocate_V(fmdp)
+            V[MDP.terminal_state(fmdp)] = 0
+
+            converged = false
+            iters_no = dp_maxiter_optim
+            for i = 1:dp_maxiter_optim
+                Δ = MDP.dp_update_V!(V, fmdp, 1.0)
+                if Δ < dp_V_tol
+                    converged = true
+                    iters_no = i
+                    break
+                end
+            end
+
+            ΔV = abs.((V - optimal_V))
+            err = max(ΔV...)
+            @info "DP: policy optimization (value iteration): max abs err = $err (iters no = $iters_no)"
+            @test converged && isapprox(err, 0.0; atol = 1e-1)
+        end
+
     end
 
-    @testset "MK: policy evaluation" begin
-        P = 0.25 * ones(size(next_states)...)
-        simulator = MDP.create_simulator(fmdp, P, 100)
-        V, Q = MDP.allocate_V_and_Q(fmdp)
-        MDP.mk_evaluate_policy!(Q, simulator, 1.0; maxiter = 10000)
+    @testset "Monte Karlo (MK) tests" begin
 
-        MDP.V_from_Q!(V, Q, P)
-        expected_V = [-14.0, -20.0, -22.0, -14.0, -18.0, -20.0, -20.0, -20.0, -20.0, -18.0, -14.0, -22.0, -20.0, -14.0, 0.0]
-        e = (abs.(V - expected_V))[1:end-1]
-        @test max(e...) < 2
-    end
+        @testset "MK: policy evaluation" begin
+            𝐏 = copy(uniform_random_policy)
+            simulator = MDP.create_simulator(fmdp, 𝐏, 1000)
 
-    @testset "MK: ε-greedy simulation" begin
-        optimal_V = [-1.0, -2.0, -3.0, -1.0, -2.0, -3.0, -2.0, -2.0, -3.0, -2.0, -1.0, -3.0, -2.0, -1.0, 0.0]
-        V, Q = MDP.allocate_V_and_Q(fmdp)
-        MDP.Q_from_V!(Q, optimal_V, fmdp, 1.0)
-        𝐩 = rand(1:4, size(next_states, 1))
-        MDP.P_from_Q!(𝐩, Q)
-        simulator = MDP.create_simulator(fmdp, 𝐩, 0.05, 100)
-        episode = simulator(5, 2)
-    end
+            V = MDP.allocate_V(fmdp)
+            Q = MDP.allocate_Q(fmdp)
 
-    @testset "MK: policy optimization" begin
-        𝐩 = rand(1:4, size(next_states, 1))
-        simulator = MDP.create_simulator(fmdp, 𝐩, 0.05, 100)
-        optimal_V = [-1.0, -2.0, -3.0, -1.0, -2.0, -3.0, -2.0, -2.0, -3.0, -2.0, -1.0, -3.0, -2.0, -1.0, 0.0]
-        V, Q = MDP.allocate_V_and_Q(fmdp)
-        converged = false
-        for i = 1:10
             MDP.mk_evaluate_policy!(Q, simulator, 1.0; maxiter = 10000)
-            modified = MDP.P_from_Q!(𝐩, Q)
-        end # for: iterations
 
-        e = (abs.(V - optimal_V))[1:end-1]
-        @test max(e...) < 4
-        @info max(e...)
+            MDP.V_from_Q!(V, Q, 𝐏)
+            ΔV = abs.((V - V_uniform_random_policy))
+            err = max(ΔV...)
+            @info "MK: policy evaluation: max abs err = $err"
+            @test isapprox(err, 0.0; atol = 1)
+        end
+
+        @testset "MK: ε-greedy simulation" begin
+            Q = MDP.allocate_Q(fmdp)
+            MDP.Q_from_V!(Q, optimal_V, fmdp, 1.0)
+
+            𝐩 = copy(random_deterministic_policy)
+            MDP.𝐩_from_Q!(𝐩, Q)
+
+            simulator = MDP.create_simulator(fmdp, 𝐩, 0.05, 100)
+            episode = simulator(5, 2)
+        end
+
+        @testset "MK: policy optimization" begin
+            𝐩 = copy(random_deterministic_policy)
+            simulator = MDP.create_simulator(fmdp, 𝐩, 0.05, 100)
+
+            Q = MDP.allocate_Q(fmdp)
+            MDP.𝐩_from_Q!(𝐩, Q)
+
+            for i = 1:10
+                MDP.mk_evaluate_policy!(Q, simulator, 1.0; maxiter = 10000)
+                modified = MDP.𝐩_from_Q!(𝐩, Q)
+            end # for: iterations
+
+            V = MDP.allocate_V(fmdp)
+            MDP.V_from_Q!(V, Q, 𝐩)
+            ΔV = abs.(V - optimal_V)
+            err = max(ΔV...)
+            @info "MK: policy optimization: max abs err = $err"
+            @test isapprox(err, 0.0; atol = 1)
+        end
+
     end
 
 end
