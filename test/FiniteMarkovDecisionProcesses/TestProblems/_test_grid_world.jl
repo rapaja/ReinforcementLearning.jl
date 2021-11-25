@@ -126,7 +126,7 @@
 
         @testset "MK: policy evaluation" begin
             𝐏 = copy(uniform_random_policy)
-            simulator = MDP.create_simulator(fmdp, 𝐏, 1000)
+            simulator = MDP.create_simulator_from_policy(fmdp, 𝐏, 1000)
 
             V = MDP.allocate_V(fmdp)
             Q = MDP.allocate_Q(fmdp)
@@ -140,6 +140,25 @@
             @test isapprox(err, 0.0; atol = 1)
         end
 
+        @testset "MK: policy evaluation (incremental)" begin
+            𝐏 = copy(uniform_random_policy)
+            simulator = MDP.create_simulator_from_policy(fmdp, 𝐏, 1000)
+
+            V = MDP.allocate_V(fmdp)
+            Q = MDP.allocate_Q(fmdp)
+
+            ΔQ = -Inf
+            for _ = 1:10000
+                ΔQ = MDP.mk_update_Q!(Q, 0.99, simulator, 1.0)
+            end
+
+            MDP.V_from_Q!(V, Q, 𝐏)
+            ΔV = abs.((V - V_uniform_random_policy))
+            err = max(ΔV...)
+            @info "MK: policy evaluation (incremental): max abs err = $err (final ΔQ = $ΔQ)"
+            @test isapprox(err, 0.0; atol = 2)
+        end
+
         @testset "MK: ε-greedy simulation" begin
             Q = MDP.allocate_Q(fmdp)
             MDP.Q_from_V!(Q, optimal_V, fmdp, 1.0)
@@ -147,13 +166,13 @@
             𝐩 = copy(random_deterministic_policy)
             MDP.𝐩_from_Q!(𝐩, Q)
 
-            simulator = MDP.create_simulator(fmdp, 𝐩, 0.05, 100)
+            simulator = MDP.create_simulator_from_policy(fmdp, 𝐩, 0.05, 100)
             episode = simulator(5, 2)
         end
 
         @testset "MK: policy optimization" begin
             𝐩 = copy(random_deterministic_policy)
-            simulator = MDP.create_simulator(fmdp, 𝐩, 0.05, 100)
+            simulator = MDP.create_simulator_from_policy(fmdp, 𝐩, 0.05, 100)
 
             Q = MDP.allocate_Q(fmdp)
             MDP.𝐩_from_Q!(𝐩, Q)
@@ -168,6 +187,23 @@
             ΔV = abs.(V - optimal_V)
             err = max(ΔV...)
             @info "MK: policy optimization: max abs err = $err"
+            @test isapprox(err, 0.0; atol = 1)
+        end
+
+        @testset "MK: policy optimization (incremental)" begin
+            Q = MDP.allocate_Q(fmdp)
+            simulator = MDP.create_simulator_from_Q(fmdp, Q, 0.05, 100)
+
+            ΔQ = -Inf
+            for i = 1:10000
+                ΔQ = MDP.mk_update_Q!(Q, 0.95, simulator, 1.0)
+            end # for: iterations
+
+            V = MDP.allocate_V(fmdp)
+            MDP.V_from_Q!(V, Q)
+            ΔV = abs.(V - optimal_V)
+            err = max(ΔV...)
+            @info "MK: policy optimization (incremental): max abs err = $err (final ΔQ = $ΔQ)"
             @test isapprox(err, 0.0; atol = 1)
         end
 
