@@ -156,7 +156,7 @@
             ΔV = abs.((V - V_uniform_random_policy))
             err = max(ΔV...)
             @info "MK: policy evaluation (incremental): max abs err = $err (final ΔQ = $ΔQ)"
-            @test isapprox(err, 0.0; atol = 3)
+            @test isapprox(err, 0.0; atol = 5)
         end
 
         @testset "MK: ε-greedy simulation" begin
@@ -209,27 +209,34 @@
 
         @testset "TD(0): policy evaluation" begin
             𝐏 = copy(uniform_random_policy)
-            simulator = MDP.create_simulator_from_policy(fmdp, 𝐏, 1000)
+            simulator = MDP.create_simulator_from_policy(fmdp, 𝐏, 10000)
 
             V = MDP.allocate_V(fmdp)
+            V[MDP.terminal_state(fmdp)] = 0
 
             δV = -Inf
-            for _ = 1:10000
+            for i = 1:5000
                 δV = -Inf
-                s0 = rand(1:MDP.states_no(fmdp))
-                a0 = rand(1:MDP.actions_no(fmdp))
-                episode = simulator(s0, a0)
-                SARSA_sequence = MDP.read_SARSA_sequence(episode)
-                for (s, a, r, sn, an) in SARSA_sequence
-                    δ = MDP.td_0!(V, 0.95, r, s, sn, 1.0)
-                    δV = max(δV, abs(δ))
+                s = rand(1:MDP.states_no(fmdp)-1)
+                if s == MDP.terminal_state(fmdp)
+                    continue
                 end
-
+                while true
+                    a = MDP.draw_action_from_policy(s, 𝐏)
+                    sn, r = MDP.act_once(fmdp, s, a)
+                    δ = MDP.td_0_update_V!(V, 0.01, r, s, sn, 1.0)
+                    δV = max(δV, abs(δ))
+                    if sn == MDP.terminal_state(fmdp)
+                        break
+                    end
+                    s = sn
+                end
+                V[MDP.terminal_state(fmdp)] = 0
             end
 
-            ΔV = abs.((V - V_uniform_random_policy))
+            ΔV = abs.(V - V_uniform_random_policy)
             err = max(ΔV...)
-            @info "MK: policy evaluation (incremental): max abs err = $err (final ΔQ = $δV)"
+            @info "TD(0): policy evaluation (incremental): max abs err = $err (final ΔQ = $δV)"
             @test isapprox(err, 0.0; atol = 3)
         end
 
