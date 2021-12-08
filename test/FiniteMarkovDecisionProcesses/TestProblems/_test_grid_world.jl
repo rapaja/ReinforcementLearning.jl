@@ -156,7 +156,7 @@
             ΔV = abs.((V - V_uniform_random_policy))
             err = max(ΔV...)
             @info "MK: policy evaluation (incremental): max abs err = $err (final ΔQ = $ΔQ)"
-            @test isapprox(err, 0.0; atol = 2)
+            @test isapprox(err, 0.0; atol = 3)
         end
 
         @testset "MK: ε-greedy simulation" begin
@@ -205,6 +205,32 @@
             err = max(ΔV...)
             @info "MK: policy optimization (incremental): max abs err = $err (final ΔQ = $ΔQ)"
             @test isapprox(err, 0.0; atol = 1)
+        end
+
+        @testset "TD(0): policy evaluation" begin
+            𝐏 = copy(uniform_random_policy)
+            simulator = MDP.create_simulator_from_policy(fmdp, 𝐏, 1000)
+
+            V = MDP.allocate_V(fmdp)
+
+            δV = -Inf
+            for _ = 1:10000
+                δV = -Inf
+                s0 = rand(1:MDP.states_no(fmdp))
+                a0 = rand(1:MDP.actions_no(fmdp))
+                episode = simulator(s0, a0)
+                SARSA_sequence = MDP.read_SARSA_sequence(episode)
+                for (s, a, r, sn, an) in SARSA_sequence
+                    δ = MDP.td_0!(V, 0.95, r, s, sn, 1.0)
+                    δV = max(δV, abs(δ))
+                end
+
+            end
+
+            ΔV = abs.((V - V_uniform_random_policy))
+            err = max(ΔV...)
+            @info "MK: policy evaluation (incremental): max abs err = $err (final ΔQ = $δV)"
+            @test isapprox(err, 0.0; atol = 3)
         end
 
     end
