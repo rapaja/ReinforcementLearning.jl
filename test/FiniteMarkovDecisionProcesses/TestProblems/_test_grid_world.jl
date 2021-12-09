@@ -209,7 +209,6 @@
 
         @testset "TD(0): policy evaluation" begin
             𝐏 = copy(uniform_random_policy)
-            simulator = MDP.create_simulator_from_policy(fmdp, 𝐏, 10000)
 
             V = MDP.allocate_V(fmdp)
             V[MDP.terminal_state(fmdp)] = 0
@@ -224,7 +223,7 @@
                 while true
                     a = MDP.draw_action_from_policy(s, 𝐏)
                     sn, r = MDP.act_once(fmdp, s, a)
-                    δ = MDP.td_0_update_V!(V, 0.01, r, s, sn, 1.0)
+                    δ = MDP.td_0_update_V!(V, 0.01, s, r, sn, 1.0)
                     δV = max(δV, abs(δ))
                     if sn == MDP.terminal_state(fmdp)
                         break
@@ -236,7 +235,74 @@
 
             ΔV = abs.(V - V_uniform_random_policy)
             err = max(ΔV...)
-            @info "TD(0): policy evaluation (incremental): max abs err = $err (final ΔQ = $δV)"
+            @info "TD(0): policy evaluation: max abs err = $err (final ΔQ = $δV)"
+            @test isapprox(err, 0.0; atol = 3)
+        end
+
+        @testset "TD SARSA: policy optimization" begin
+            𝐏 = copy(uniform_random_policy)
+
+            Q = MDP.allocate_Q(fmdp)
+
+            δQ = -Inf
+            for i = 1:5000
+                δQ = -Inf
+                s = rand(1:MDP.states_no(fmdp)-1)
+                if s == MDP.terminal_state(fmdp)
+                    continue
+                end
+                a = rand(1:MDP.actions_no(fmdp))
+                while true
+                    sn, r = MDP.act_once(fmdp, s, a)
+                    an = MDP.draw_action_from_Q(s, Q, 0.05)
+                    δ = MDP.td_sarsa_update_Q!(Q, 0.1, s, a, r, sn, an, 1.0)
+                    δQ = max(δQ, abs(δ))
+                    if sn == MDP.terminal_state(fmdp)
+                        break
+                    end
+                    s = sn
+                    a = an
+                end
+            end
+
+            V = MDP.allocate_V(fmdp)
+            MDP.V_from_Q!(V, Q)
+            ΔV = abs.(V - optimal_V)
+            err = max(ΔV...)
+            @info "TD SARSA: policy optimization: max abs err = $err (final ΔQ = $δQ)"
+            @test isapprox(err, 0.0; atol = 3)
+        end
+
+        @testset "TD Q LEARNING: policy optimization" begin
+            𝐏 = copy(uniform_random_policy)
+
+            Q = MDP.allocate_Q(fmdp)
+
+            δQ = -Inf
+            for i = 1:5000
+                δQ = -Inf
+                s = rand(1:MDP.states_no(fmdp)-1)
+                if s == MDP.terminal_state(fmdp)
+                    continue
+                end
+                a = rand(1:MDP.actions_no(fmdp))
+                while true
+                    sn, r = MDP.act_once(fmdp, s, a)
+                    δ = MDP.td_ql_update_Q!(Q, 0.1, s, a, r, sn, 1.0)
+                    δQ = max(δQ, abs(δ))
+                    if sn == MDP.terminal_state(fmdp)
+                        break
+                    end
+                    s = sn
+                    a = MDP.draw_action_from_Q(s, Q, 0.05)
+                end
+            end
+
+            V = MDP.allocate_V(fmdp)
+            MDP.V_from_Q!(V, Q)
+            ΔV = abs.(V - optimal_V)
+            err = max(ΔV...)
+            @info "TD Q LEARNING: policy optimization: max abs err = $err (final ΔQ = $δQ)"
             @test isapprox(err, 0.0; atol = 3)
         end
 
