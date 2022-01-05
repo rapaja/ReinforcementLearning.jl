@@ -208,3 +208,23 @@ function 𝐩_from_Q!(𝐩::AbstractVector{<:Integer}, Q::AbstractMatrix{<:Real}
     end # for: states
     return modified
 end
+
+"""
+    𝐏_from_Q!(𝐩, Q)
+
+Reevaluate (in-place) stochastic greedy policy (represented by a matrix whose entry 
+at index `s, a` corresponds to the probability of taking action `a` in state `s`) from 
+the given state-action matrix `Q`.
+
+In case multiple actions are alowed for one state, the returned strategy will choose
+uniformly among the given actions.
+
+The function does not return a value.
+"""
+function 𝐏_from_Q!(𝐏::AbstractMatrix{<:Real}, Q::AbstractMatrix{<:Real})
+    for s = 1:size(Q, 1)
+        value = maximum(replace(Q[s, :], NaN => -Inf))
+        actions = findall(Q[s, :] .== value)
+        𝐏[s, actions] .= 1.0 / length(actions)
+    end # for: states
+end
